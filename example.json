@@ -1,0 +1,312 @@
+{
+    "workflows": [
+      {
+        "name": "Veille Emploi Quotidienne",
+        "description": "Recherche automatique d'offres d'emploi et notification Slack",
+        "nodes": [
+          {
+            "id": "schedule",
+            "name": "Déclencheur quotidien",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "parameters": {
+              "rule": {
+                "interval": [
+                  {
+                    "field": "hours",
+                    "value": 9
+                  }
+                ]
+              }
+            },
+            "position": [400, 300]
+          },
+          {
+            "id": "linkedin_search",
+            "name": "Recherche LinkedIn",
+            "type": "n8n-nodes-linkedin-jobs.linkedInJobs",
+            "parameters": {
+              "keyword": "développeur javascript",
+              "location": "Paris, France",
+              "jobType": "full time",
+              "remoteFilter": "hybrid",
+              "experienceLevel": "senior",
+              "dateSincePosted": "24hr",
+              "limit": 20,
+              "sortBy": "recent"
+            },
+            "position": [600, 300]
+          },
+          {
+            "id": "filter_new",
+            "name": "Filtrer nouveaux emplois",
+            "type": "n8n-nodes-base.function",
+            "parameters": {
+              "functionCode": "// Filtrer les emplois des dernières 24h\nconst today = new Date();\nconst yesterday = new Date(today.getTime() - 24*60*60*1000);\n\nreturn items.filter(item => {\n  const jobDate = new Date(item.json.date);\n  return jobDate >= yesterday;\n});"
+            },
+            "position": [800, 300]
+          },
+          {
+            "id": "slack_notification",
+            "name": "Notification Slack",
+            "type": "n8n-nodes-base.slack",
+            "parameters": {
+              "channel": "#veille-emploi",
+              "text": "🔍 Nouvelles offres d'emploi trouvées:\n{{ $json.position }} chez {{ $json.company }}\n📍 {{ $json.location }}\n💰 {{ $json.salary }}\n🔗 {{ $json.jobUrl }}"
+            },
+            "position": [1000, 300]
+          }
+        ],
+        "connections": {
+          "schedule": { "main": [["linkedin_search"]] },
+          "linkedin_search": { "main": [["filter_new"]] },
+          "filter_new": { "main": [["slack_notification"]] }
+        }
+      },
+      {
+        "name": "Analyse Marché Emploi",
+        "description": "Analyse comparative des offres d'emploi par technologies",
+        "nodes": [
+          {
+            "id": "manual_trigger",
+            "name": "Déclencheur manuel",
+            "type": "n8n-nodes-base.manualTrigger",
+            "position": [400, 300]
+          },
+          {
+            "id": "set_technologies",
+            "name": "Technologies à analyser",
+            "type": "n8n-nodes-base.set",
+            "parameters": {
+              "values": {
+                "string": [
+                  {
+                    "name": "technologies",
+                    "value": "javascript,python,java,react,angular,vue.js"
+                  }
+                ]
+              }
+            },
+            "position": [600, 300]
+          },
+          {
+            "id": "split_technologies",
+            "name": "Diviser technologies",
+            "type": "n8n-nodes-base.itemLists",
+            "parameters": {
+              "operation": "splitOutItems",
+              "fieldToSplitOut": "technologies",
+              "include": "noOtherFields"
+            },
+            "position": [800, 300]
+          },
+          {
+            "id": "linkedin_search_tech",
+            "name": "Recherche par technologie",
+            "type": "n8n-nodes-linkedin-jobs.linkedInJobs",
+            "parameters": {
+              "keyword": "{{ $json.technologies }}",
+              "location": "France",
+              "jobType": "full time",
+              "dateSincePosted": "past week",
+              "limit": 50
+            },
+            "position": [1000, 300]
+          },
+          {
+            "id": "aggregate_results",
+            "name": "Agrégation résultats",
+            "type": "n8n-nodes-base.function",
+            "parameters": {
+              "functionCode": "// Compter les offres par technologie\nconst techCount = {};\n\nfor (const item of items) {\n  const tech = item.json.searchParams.keyword;\n  if (!techCount[tech]) {\n    techCount[tech] = 0;\n  }\n  techCount[tech]++;\n}\n\nreturn [{\n  json: {\n    analysis: techCount,\n    totalJobs: items.length,\n    analyzedAt: new Date().toISOString()\n  }\n}];"
+            },
+            "position": [1200, 300]
+          },
+          {
+            "id": "save_to_sheets",
+            "name": "Sauvegarder dans Sheets",
+            "type": "n8n-nodes-base.googleSheets",
+            "parameters": {
+              "operation": "append",
+              "documentId": "your-sheet-id",
+              "sheetName": "Analyse Marché",
+              "columns": {
+                "mappingMode": "defineBelow",
+                "value": {
+                  "date": "={{ $json.analyzedAt }}",
+                  "javascript": "={{ $json.analysis.javascript || 0 }}",
+                  "python": "={{ $json.analysis.python || 0 }}",
+                  "java": "={{ $json.analysis.java || 0 }}",
+                  "react": "={{ $json.analysis.react || 0 }}",
+                  "angular": "={{ $json.analysis.angular || 0 }}",
+                  "vue": "={{ $json.analysis['vue.js'] || 0 }}"
+                }
+              }
+            },
+            "position": [1400, 300]
+          }
+        ],
+        "connections": {
+          "manual_trigger": { "main": [["set_technologies"]] },
+          "set_technologies": { "main": [["split_technologies"]] },
+          "split_technologies": { "main": [["linkedin_search_tech"]] },
+          "linkedin_search_tech": { "main": [["aggregate_results"]] },
+          "aggregate_results": { "main": [["save_to_sheets"]] }
+        }
+      },
+      {
+        "name": "Alerte Emploi Ciblée",
+        "description": "Système d'alerte pour des critères très spécifiques",
+        "nodes": [
+          {
+            "id": "webhook_trigger",
+            "name": "Webhook déclencheur",
+            "type": "n8n-nodes-base.webhook",
+            "parameters": {
+              "path": "job-alert",
+              "httpMethod": "POST"
+            },
+            "position": [400, 300]
+          },
+          {
+            "id": "extract_criteria",
+            "name": "Extraire critères",
+            "type": "n8n-nodes-base.set",
+            "parameters": {
+              "values": {
+                "string": [
+                  {
+                    "name": "keyword",
+                    "value": "={{ $json.query.keyword }}"
+                  },
+                  {
+                    "name": "location",
+                    "value": "={{ $json.query.location }}"
+                  },
+                  {
+                    "name": "salary",
+                    "value": "={{ $json.query.salary }}"
+                  },
+                  {
+                    "name": "email",
+                    "value": "={{ $json.query.email }}"
+                  }
+                ]
+              }
+            },
+            "position": [600, 300]
+          },
+          {
+            "id": "linkedin_targeted_search",
+            "name": "Recherche ciblée",
+            "type": "n8n-nodes-linkedin-jobs.linkedInJobs",
+            "parameters": {
+              "keyword": "={{ $json.keyword }}",
+              "location": "={{ $json.location }}",
+              "salary": "={{ $json.salary }}",
+              "dateSincePosted": "24hr",
+              "limit": 10,
+              "sortBy": "recent"
+            },
+            "position": [800, 300]
+          },
+          {
+            "id": "check_criteria",
+            "name": "Vérifier critères",
+            "type": "n8n-nodes-base.if",
+            "parameters": {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.salary }}",
+                    "operation": "isNotEmpty"
+                  }
+                ],
+                "number": [
+                  {
+                    "value1": "={{ $runIndex }}",
+                    "operation": "largerEqual",
+                    "value2": 3
+                  }
+                ]
+              },
+              "combineOperation": "any"
+            },
+            "position": [1000, 300]
+          },
+          {
+            "id": "format_email",
+            "name": "Formater email",
+            "type": "n8n-nodes-base.function",
+            "parameters": {
+              "functionCode": "const jobs = items;\nlet emailContent = `Bonjour,\\n\\nVoici les nouvelles offres correspondant à vos critères :\\n\\n`;\n\nfor (const job of jobs) {\n  emailContent += `📋 ${job.json.position}\\n`;\n  emailContent += `🏢 ${job.json.company}\\n`;\n  emailContent += `📍 ${job.json.location}\\n`;\n  emailContent += `💰 ${job.json.salary || 'Salaire non spécifié'}\\n`;\n  emailContent += `🔗 ${job.json.jobUrl}\\n\\n`;\n}\n\nemailContent += `Bonne recherche !`;\n\nreturn [{\n  json: {\n    subject: `🎯 ${jobs.length} nouvelles offres pour \"${jobs[0].json.searchParams.keyword}\"`,\n    content: emailContent,\n    recipient: jobs[0].json.searchParams.email || 'default@example.com'\n  }\n}];"
+            },
+            "position": [1200, 200]
+          },
+          {
+            "id": "send_email",
+            "name": "Envoyer email",
+            "type": "n8n-nodes-base.emailSend",
+            "parameters": {
+              "toEmail": "={{ $json.recipient }}",
+              "subject": "={{ $json.subject }}",
+              "message": "={{ $json.content }}"
+            },
+            "position": [1400, 200]
+          },
+          {
+            "id": "log_no_results",
+            "name": "Logger aucun résultat",
+            "type": "n8n-nodes-base.function",
+            "parameters": {
+              "functionCode": "console.log('Aucune offre trouvée pour les critères:', $input.first().json.searchParams);\nreturn [{ json: { message: 'Aucune offre trouvée' } }];"
+            },
+            "position": [1200, 400]
+          }
+        ],
+        "connections": {
+          "webhook_trigger": { "main": [["extract_criteria"]] },
+          "extract_criteria": { "main": [["linkedin_targeted_search"]] },
+          "linkedin_targeted_search": { "main": [["check_criteria"]] },
+          "check_criteria": { 
+            "main": [
+              ["format_email"],
+              ["log_no_results"]
+            ]
+          },
+          "format_email": { "main": [["send_email"]] }
+        }
+      }
+    ],
+    "usage_examples": {
+      "basic_search": {
+        "description": "Recherche simple d'offres d'emploi",
+        "parameters": {
+          "keyword": "développeur web",
+          "location": "Lyon, France",
+          "limit": 10
+        }
+      },
+      "advanced_filtering": {
+        "description": "Recherche avec filtres avancés",
+        "parameters": {
+          "keyword": "data scientist",
+          "location": "Remote",
+          "jobType": "full time",
+          "remoteFilter": "remote",
+          "salary": "80000",
+          "experienceLevel": "senior",
+          "dateSincePosted": "past week",
+          "limit": 25,
+          "sortBy": "recent"
+        }
+      },
+      "multi_location": {
+        "description": "Recherche dans plusieurs villes",
+        "workflow_logic": "Utiliser un nœud Set avec une liste de villes, puis Split in Batches, puis LinkedIn Jobs pour chaque ville"
+      },
+      "keyword_variations": {
+        "description": "Recherche avec variantes de mots-clés",
+        "workflow_logic": "Créer une liste de synonymes/variantes, utiliser Split in Batches, puis merger les résultats"
+      }
+    }
+  }
