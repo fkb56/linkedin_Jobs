@@ -1,0 +1,49 @@
+{
+  "name": "n8n-nodes-linkedin-jobs",
+  "version": "1.0.8",
+  "description": "Nœud n8n pour récupérer des offres d'emploi LinkedIn avec des filtres avancés",
+  "keywords": [
+    "n8n-community-node-package",
+    "linkedin",
+    "jobs",
+    "employment",
+    "recruitment",
+    "scraping"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/fkb56/n8n-nodes-linkedin-jobs",
+  "author": {
+    "name": "Franck Bouda",
+    "email": "contact@franckbouda.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fkb56/n8n-nodes-linkedin-jobs.git"
+  },
+  "engines": {
+    "node": ">=18.10"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && gulp build:icons",
+    "dev": "tsc --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [],
+    "nodes": [
+      "dist/nodes/LinkedInJobs/LinkedInJobs.node.js"
+    ]
+  },
+  "devDependencies": {
+    "gulp": "^4.0.2",
+    "typescript": "^5.5.3",
+    "@types/node": "^20.11.30"
+  },
+  "dependencies": {
+    "linkedin-jobs-api": "^1.0.6"
+  }
+}
