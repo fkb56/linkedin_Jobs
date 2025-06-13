@@ -14,9 +14,17 @@ on:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    # Ajout des permissions nécessaires
+    permissions:
+      contents: write
+      packages: write
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Utiliser le token par défaut avec les permissions étendues
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -40,12 +48,9 @@ jobs:
         run: npm publish --access public
 
       - name: Push version bump
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${GH_PAT}@github.com/fkb56/linkedin_Jobs.git
           git add package.json package-lock.json
           git commit -m "ci: bump version [skip ci]" || echo "No changes to commit"
-          git push 
+          git push
